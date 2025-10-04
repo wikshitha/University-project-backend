@@ -5,6 +5,7 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import authRoutes from "./routes/authRoutes.js";
 import vaultRoutes from "./routes/vaultRoutes.js";
+import releaseRoutes from "./routes/releaseRoutes.js";
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(bodyParser.json({ limit: "50mb" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/vaults", vaultRoutes);
+app.use("/api/releases", releaseRoutes);
 
 
 app.listen(3000, () => {
