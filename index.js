@@ -6,8 +6,11 @@ import bodyParser from "body-parser";
 import authRoutes from "./routes/authRoutes.js";
 import vaultRoutes from "./routes/vaultRoutes.js";
 import releaseRoutes from "./routes/releaseRoutes.js";
+import auditLogRoutes from "./routes/auditLogRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 import { startInactivityWatcher } from "./jobs/inactivityWatcher.js";
 import { startGracePeriodChecker } from "./jobs/gracePeriodChecker.js";
+import { startReleaseScheduler } from "./jobs/releaseScheduler.js";
 
 
 dotenv.config();
@@ -21,12 +24,15 @@ app.use(bodyParser.json({ limit: "50mb" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/vaults", vaultRoutes);
 app.use("/api/releases", releaseRoutes);
+app.use("/api/auditlogs", auditLogRoutes);
+app.use("/api/upload", uploadRoutes);
 
 
 app.listen(3000, () => {
     console.log("Server is running on port 3000");
     startInactivityWatcher(); // start daily watcher
     startGracePeriodChecker();
+    startReleaseScheduler(); // start release scheduler
 });
 
 let mongoUrl = process.env.MONGO_URL;

@@ -1,6 +1,7 @@
 import Vault from "../models/Vault.js";
 import Item from "../models/Item.js";
 import RuleSet from "../models/RuleSet.js";
+import AuditLog from "../models/AuditLog.js";
 
 // Create a new vault
 export const createVault = async (req, res) => {
@@ -20,6 +21,13 @@ export const createVault = async (req, res) => {
 
     await vault.save();
     res.status(201).json({ message: "Vault created", vault });
+
+    await AuditLog.create({
+      user: req.user._id,
+      action: "Created Vault",
+      details: { vaultId: vault._id, vaultName: vault.name },
+    });
+
   } catch (err) {
     res.status(500).json({ message: "Error creating vault", error: err.message });
   }
