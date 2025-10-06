@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes.js";
 import vaultRoutes from "./routes/vaultRoutes.js";
 import releaseRoutes from "./routes/releaseRoutes.js";
 import { startInactivityWatcher } from "./jobs/inactivityWatcher.js";
+import { startGracePeriodChecker } from "./jobs/gracePeriodChecker.js";
 
 
 dotenv.config();
@@ -25,6 +26,7 @@ app.use("/api/releases", releaseRoutes);
 app.listen(3000, () => {
     console.log("Server is running on port 3000");
     startInactivityWatcher(); // start daily watcher
+    startGracePeriodChecker();
 });
 
 let mongoUrl = process.env.MONGO_URL;
@@ -36,3 +38,4 @@ connection.once("open",()=>{
     console.log("Mongodb connection succes");
     
 })
+

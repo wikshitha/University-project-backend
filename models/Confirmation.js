@@ -13,7 +13,8 @@ const confirmationSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["approved", "rejected"],
+    enum: ["pending","approved", "rejected"],
+    default: "pending",
     required: true,
   },
   comment: {
