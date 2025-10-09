@@ -2,6 +2,8 @@ import Release from "../models/Release.js";
 import Confirmation from "../models/Confirmation.js";
 import AuditLog from "../models/AuditLog.js";
 import Vault from "../models/Vault.js";
+import { sendEmail } from "../utils/emailService.js";
+
 
 /**
  * Trigger a release (e.g., system detects inactivity)
@@ -23,6 +25,17 @@ export const triggerRelease = async (req, res) => {
       triggeredAt: new Date(),
       gracePeriodEnd: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days grace
     });
+
+    // Example: notify executors/witnesses
+    const participants = vault.participants || []; // assuming participant list exists
+    for (const p of participants) {
+      await sendEmail(
+      p.email,
+      "Release Triggered — Grace Period Started",
+      `A release has been triggered for vault "${vault.title}". Grace period ends on ${release.gracePeriodEnd}.`
+    );
+}
+
 
     // Create audit log
     await AuditLog.create({

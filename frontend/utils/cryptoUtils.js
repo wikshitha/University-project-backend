@@ -86,3 +86,33 @@ export async function generateVaultKey() {
     return bytes.buffer;
   }
   
+  // Convert a base64 string to ArrayBuffer
+function base64ToArrayBuffer(base64) {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+  return bytes.buffer;
+}
+
+// Import participant’s public key (JWK)
+export async function importPublicKey(jwk) {
+  return await window.crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    true,
+    ["encrypt"]
+  );
+}
+
+// Encrypt the vault key with a participant’s public key
+export async function encryptVaultKeyForParticipant(vaultKey, participantPublicKeyJWK) {
+  const publicKey = await importPublicKey(participantPublicKeyJWK);
+  const encryptedKey = await window.crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    publicKey,
+    vaultKey
+  );
+  return window.btoa(String.fromCharCode(...new Uint8Array(encryptedKey)));
+}
