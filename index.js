@@ -11,8 +11,6 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import { startInactivityWatcher } from "./jobs/inactivityWatcher.js";
 import { startGracePeriodChecker } from "./jobs/gracePeriodChecker.js";
 import { startReleaseScheduler } from "./jobs/releaseScheduler.js";
-import testRoutes from "./routes/testRoutes.js";
-
 
 dotenv.config();
 
@@ -28,7 +26,6 @@ app.use("/api/releases", releaseRoutes);
 app.use("/api/auditlogs", auditLogRoutes);
 app.use("/api/upload", uploadRoutes);
 
-app.use("/api/test", testRoutes);
 
 
 app.listen(3000, () => {
