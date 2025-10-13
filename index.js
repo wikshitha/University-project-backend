@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-import cors from "cors";
+import dotenv from "dotenv";;
+import cors from "cors"
 import bodyParser from "body-parser";
 import authRoutes from "./routes/authRoutes.js";
 import vaultRoutes from "./routes/vaultRoutes.js";
@@ -18,7 +18,7 @@ const app = express();
 
 
 app.use(cors());
-app.use(bodyParser.json({ limit: "50mb" }));
+app.use(bodyParser.json({ limit: "500mb" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/vaults", vaultRoutes);

@@ -1,3 +1,4 @@
+// /controllers/uploadController.js
 import cloudinary from "cloudinary";
 import Item from "../models/Item.js";
 import Vault from "../models/Vault.js";
@@ -16,18 +17,24 @@ cloudinary.v2.config({
  */
 export const uploadEncryptedFile = async (req, res) => {
   try {
-    const { vaultId, metadata, encryptedData } = req.body;
+    const { vaultId, metadata, encryptedData, encKey } = req.body;
 
-    if (!vaultId || !encryptedData) {
-      return res.status(400).json({ message: "Vault ID and encrypted data required" });
+    // Validate inputs
+    if (!vaultId || !encryptedData || !encKey) {
+      return res.status(400).json({ message: "Vault ID, encrypted data, and encKey required" });
     }
 
     // Verify vault ownership
     const vault = await Vault.findById(vaultId);
     if (!vault) return res.status(404).json({ message: "Vault not found" });
 
-    // Upload encrypted blob as base64 string to Cloudinary
-    const uploadResponse = await cloudinary.v2.uploader.upload(encryptedData, {
+    // Ensure data is in correct format for Cloudinary
+    const uploadBase64 = encryptedData.startsWith("data:")
+      ? encryptedData
+      : `data:application/octet-stream;base64,${encryptedData}`;
+
+    // Upload encrypted blob to Cloudinary
+    const uploadResponse = await cloudinary.v2.uploader.upload(uploadBase64, {
       folder: "timelock_vaults",
       resource_type: "auto",
       public_id: `enc_${uuidv4()}`,
@@ -37,6 +44,7 @@ export const uploadEncryptedFile = async (req, res) => {
     const item = await Item.create({
       vaultId,
       fileUrl: uploadResponse.secure_url,
+      encKey,
       metadata: metadata || {},
     });
 
@@ -51,7 +59,7 @@ export const uploadEncryptedFile = async (req, res) => {
       item,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error uploading encrypted file", error: err.message });
+    console.error("❌ Upload error:", err);
+    res.status(500).json({ message: "Error uploading encrypted file" });
   }
 };

@@ -69,7 +69,7 @@ export const updateVault = async (req, res) => {
 
     // Only update vaults owned by logged-in user
     const vault = await Vault.findOneAndUpdate(
-      { _id: id, owner: req.user._id },
+      { _id: id,  ownerId: req.user._id },
       req.body,   // fields to update (name, description, etc.)
       { new: true, runValidators: true }
     );
@@ -113,3 +113,26 @@ export const deleteVault = async (req, res) => {
     res.status(500).json({ message: "Error deleting vault", error: err.message });
   }
 };
+
+
+// Get a specific vault by ID with its items
+export const getVaultById = async (req, res) => {
+  try {
+    const vault = await Vault.findOne({
+      _id: req.params.id,
+      ownerId: req.user._id,
+    }).populate("ruleSetId");
+
+    if (!vault) {
+      return res.status(404).json({ message: "Vault not found or not authorized" });
+    }
+
+    // Fetch related items
+    const items = await Item.find({ vaultId: vault._id });
+
+    res.json({ vault, items });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching vault", error: err.message });
+  }
+};
+
