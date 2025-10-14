@@ -4,6 +4,8 @@ import {
   getReleasesForUser,
   confirmRelease,
   finalizeRelease,
+  getPendingReleasesForUser,
+
 } from "../controllers/releaseController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 
@@ -14,6 +16,9 @@ router.post("/trigger", protect, triggerRelease);
 
 //  Get all releases visible to current user
 router.get("/", protect, getReleasesForUser);
+
+//  Get all pending releases visible to current user
+router.get("/pending", protect, getPendingReleasesForUser);
 
 //  Approve or reject a release
 router.post("/confirm", protect, confirmRelease);

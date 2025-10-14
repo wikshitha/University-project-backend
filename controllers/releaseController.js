@@ -146,3 +146,27 @@ export const finalizeRelease = async (req, res) => {
     res.status(500).json({ message: "Error finalizing release", error: err.message });
   }
 };
+
+export const getPendingReleasesForUser = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const releases = await Release.find({
+      status: { $in: ["pending", "in_progress"] },
+    }).populate("vaultId");
+
+    // Optional: filter where user is a vault participant
+    const myReleases = releases.filter((r) =>
+      r.vaultId?.participants?.some(
+        (p) => p.userId?.toString() === userId.toString()
+      )
+    );
+
+    res.json(myReleases);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Error fetching pending releases", error: err.message });
+  }
+};
+
