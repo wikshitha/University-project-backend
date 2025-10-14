@@ -90,10 +90,19 @@ export const confirmRelease = async (req, res) => {
       release.approvalsReceived += 1;
 
       // If all approvals collected, move to time-lock phase
-      if (release.approvalsReceived >= release.approvalsNeeded) {
-        release.status = "approved";
-        release.countdownEnd = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days lock
+      if (release.status === "approved") {
+        const vault = await Vault.findById(release.vaultId);
+        if (vault?.participants) {
+          for (const p of vault.participants) {
+            await sendEmail(
+              p.email,
+              "Vault Approved for Release",
+              `Vault "${vault.name}" has received all approvals. Countdown until unlock: ends on ${release.countdownEnd}.`
+            );
+          }
+        }
       }
+      
     } else {
       release.status = "rejected";
     }

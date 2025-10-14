@@ -29,6 +29,10 @@ const releaseSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  notifiedTimeLock: { 
+    type: Boolean,
+    default: false
+   },
   completedAt: {
     type: Date,
   },
