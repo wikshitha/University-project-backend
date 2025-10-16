@@ -74,8 +74,17 @@ export const confirmRelease = async (req, res) => {
     const { releaseId, status, comment } = req.body;
 
     // Check if release exists
-    const release = await Release.findById(releaseId);
+    const release = await Release.findById(releaseId).populate("vaultId");
     if (!release) return res.status(404).json({ message: "Release not found" });
+
+    // Differentiate participant vs owner actions
+    let actionType = "participant"; // default
+
+    // If the user is the vault owner
+    const vault = release.vaultId;
+    if (vault.owner.toString() === req.user._id.toString()) {
+      actionType = "owner";
+    }
 
     // Create new confirmation
     const confirmation = await Confirmation.create({
@@ -83,28 +92,49 @@ export const confirmRelease = async (req, res) => {
       participantId: req.user._id,
       status,
       comment,
+      actionType,
     });
 
-    // Update release progress
-    if (status === "approved") {
-      release.approvalsReceived += 1;
+    // Update release progress only for participant approvals
+    if (actionType === "participant") {
+      if (status === "approved") {
+        release.approvalsReceived += 1;
 
-      // If all approvals collected, move to time-lock phase
-      if (release.status === "approved") {
-        const vault = await Vault.findById(release.vaultId);
-        if (vault?.participants) {
-          for (const p of vault.participants) {
-            await sendEmail(
-              p.email,
-              "Vault Approved for Release",
-              `Vault "${vault.name}" has received all approvals. Countdown until unlock: ends on ${release.countdownEnd}.`
-            );
+        // If all approvals collected, move to time-lock phase
+        if (release.approvalsReceived >= release.approvalsNeeded) {
+          release.status = "approved"; // move to approved (time-lock starts)
+          
+          // Notify participants
+          if (vault?.participants) {
+            for (const p of vault.participants) {
+              await sendEmail(
+                p.email,
+                "Vault Approved for Release",
+                `Vault "${vault.name}" has received all participant approvals. Countdown until unlock ends on ${release.countdownEnd}.`
+              );
+            }
           }
         }
+      } else {
+        release.status = "rejected"; // participant rejected
       }
-      
-    } else {
-      release.status = "rejected";
+    }
+
+    // Owner revocation overrides participant approvals
+    if (actionType === "owner" && status === "rejected") {
+      release.status = "rejected"; // owner revoked
+      release.completedAt = new Date();
+
+      // Notify participants
+      if (vault?.participants) {
+        for (const p of vault.participants) {
+          await sendEmail(
+            p.email,
+            "Vault Release Aborted",
+            `The release of vault "${vault.name}" has been aborted by the owner. Comment: ${comment || "No comment provided"}`
+          );
+        }
+      }
     }
 
     await release.save();
@@ -112,7 +142,7 @@ export const confirmRelease = async (req, res) => {
     // Log audit
     await AuditLog.create({
       actorId: req.user._id,
-      action: `release_${status} by ${req.user._id} for release ${releaseId}`,
+      action: `${actionType}_${status} for release ${releaseId}`,
     });
 
     res.status(201).json({ message: "Confirmation recorded", confirmation, release });
@@ -176,6 +206,45 @@ export const getPendingReleasesForUser = async (req, res) => {
     res
       .status(500)
       .json({ message: "Error fetching pending releases", error: err.message });
+  }
+};
+
+export const revokeRelease = async (req, res) => {
+  try {
+    const { releaseId, reason } = req.body;
+
+    const release = await Release.findById(releaseId).populate("vaultId");
+    if (!release) return res.status(404).json({ message: "Release not found" });
+
+    if (release.status === "released") {
+      return res.status(400).json({ message: "Cannot revoke a released vault" });
+    }
+
+    release.status = "rejected"; // mark as revoked
+    release.completedAt = new Date();
+    await release.save();
+
+    // Notify participants
+    const vault = release.vaultId;
+    if (vault?.participants) {
+      for (const p of vault.participants) {
+        await sendEmail(
+          p.email,
+          "Vault Release Aborted",
+          `The release of vault "${vault.name}" has been aborted by the owner. Reason: ${reason || "No reason provided"}`
+        );
+      }
+    }
+
+    // Audit log
+    await AuditLog.create({
+      actorId: req.user._id,
+      action: `owner_revoked_release_${release._id}`,
+    });
+
+    res.status(200).json({ message: "Release successfully revoked", release });
+  } catch (err) {
+    res.status(500).json({ message: "Error revoking release", error: err.message });
   }
 };
 

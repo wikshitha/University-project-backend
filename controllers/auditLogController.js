@@ -22,7 +22,7 @@ export const recordLog = async (req, res) => {
 export const getLogs = async (req, res) => {
   try {
     const logs = await AuditLog.find()
-      .populate("user", "firstName lastName email role")
+      .populate("actorId", "firstName lastName email role")
       .sort({ timestamp: -1 });
 
     res.status(200).json(logs);

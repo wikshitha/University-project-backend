@@ -5,6 +5,7 @@ import {
   confirmRelease,
   finalizeRelease,
   getPendingReleasesForUser,
+  revokeRelease
 
 } from "../controllers/releaseController.js";
 import { protect } from "../middlewares/authMiddleware.js";
@@ -25,5 +26,8 @@ router.post("/confirm", protect, confirmRelease);
 
 //  Finalize after time-lock
 router.post("/finalize", protect, finalizeRelease);
+
+router.post("/revoke", protect, revokeRelease);
+
 
 export default router;
