@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema({
   },
   publicKey: String,
   privateKeyEnc: String, // encrypted private key
+  vaultKeyBackups: {
+    type: Map,
+    of: String,
+    default: {},
+  },
 }, { timestamps: true });
 
 // Hash password before save

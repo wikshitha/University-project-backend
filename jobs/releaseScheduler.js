@@ -1,6 +1,5 @@
 import cron from "node-cron";
 import Release from "../models/Release.js";
-import Vault from "../models/Vault.js";
 import AuditLog from "../models/AuditLog.js";
 import { sendEmail } from "../utils/emailService.js";
 

@@ -8,6 +8,7 @@ import vaultRoutes from "./routes/vaultRoutes.js";
 import releaseRoutes from "./routes/releaseRoutes.js";
 import auditLogRoutes from "./routes/auditLogRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import keyBackupRoutes from "./routes/keyBackupRoutes.js";
 import { startInactivityWatcher } from "./jobs/inactivityWatcher.js";
 import { startGracePeriodChecker } from "./jobs/gracePeriodChecker.js";
 import { startReleaseScheduler } from "./jobs/releaseScheduler.js";
@@ -22,6 +23,7 @@ app.use(bodyParser.json({ limit: "500mb" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/vaults", vaultRoutes);
+app.use("/api/keybackup", keyBackupRoutes);
 app.use("/api/releases", releaseRoutes);
 app.use("/api/auditlogs", auditLogRoutes);
 app.use("/api/upload", uploadRoutes);

@@ -59,7 +59,7 @@ export const uploadEncryptedFile = async (req, res) => {
       item,
     });
   } catch (err) {
-    console.error("❌ Upload error:", err);
+    console.error(" Upload error:", err);
     res.status(500).json({ message: "Error uploading encrypted file" });
   }
 };
