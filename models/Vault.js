@@ -1,41 +1,74 @@
 import mongoose from "mongoose";
 
-const vaultSchema = new mongoose.Schema({
+//
+// Sub-schemas for participants and sealed keys
+//
+const participantSchema = new mongoose.Schema({
+  participantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  role: {
+    type: String,
+    enum: ["beneficiary", "executor", "witness"],
+    required: true,
+  },
+});
 
-  ownerId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "User", 
-    required: true 
-},
-  title: {
-     type: String, 
-     required: true 
+const sealedKeySchema = new mongoose.Schema({
+  participantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  encKey: {
+    type: String, // base64-encoded encrypted vault key
+    required: true,
+  },
+});
+
+//
+// Main Vault schema
+//
+const vaultSchema = new mongoose.Schema(
+  {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
-  description: String,
-
-  // linked rules
-  ruleSetId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "RuleSet" 
-},
-
-  // encrypted items
-  items: [{ 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "Item" 
-}],
-
-  // sealed keys for participants
-  sealedKeys: [{
-    participantId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: "User" 
+    title: {
+      type: String,
+      required: true,
+      trim: true,
     },
-    encKey: { 
-        type: String, 
-        required: true 
-    }
-  }]
-}, { timestamps: true });
+    description: {
+      type: String,
+      trim: true,
+    },
+
+    // Link to ruleset
+    ruleSetId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "RuleSet",
+    },
+
+    // Encrypted file references
+    items: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Item",
+      },
+    ],
+
+    // Participants (executors, witnesses, beneficiaries)
+    participants: [participantSchema],
+
+    // Encrypted (sealed) vault keys per participant
+    sealedKeys: [sealedKeySchema],
+  },
+  { timestamps: true }
+);
 
 export default mongoose.model("Vault", vaultSchema);

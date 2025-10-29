@@ -36,14 +36,33 @@ export const createVault = async (req, res) => {
 // Get all vaults for logged-in user
 export const getMyVaults = async (req, res) => {
   try {
-    const vaults = await Vault.find({ ownerId: req.user._id })
-      .populate("ruleSetId")
-      .populate("items");
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    let vaults;
+
+    if (userRole === "owner") {
+      // 🧑‍💼 Owner: all vaults they created
+      vaults = await Vault.find({ ownerId: userId })
+        .populate("ruleSetId")
+        .populate("participants.participantId", "firstName lastName email role");
+    } else {
+      // 👩‍⚖️ Witness / Executor / Beneficiary: only assigned vaults
+      vaults = await Vault.find({
+        "participants.participantId": userId,
+      })
+        .populate("ownerId", "firstName lastName email role")
+        .populate("ruleSetId")
+        .populate("participants.participantId", "firstName lastName email role");
+    }
+
     res.json(vaults);
   } catch (err) {
-    res.status(500).json({ message: "Error fetching vaults", error: err.message });
+    console.error("Error fetching vaults:", err);
+    res.status(500).json({ message: "Failed to fetch vaults" });
   }
 };
+
 
 // Add an item to a vault
 export const addItem = async (req, res) => {
@@ -60,6 +79,50 @@ export const addItem = async (req, res) => {
     res.status(500).json({ message: "Error adding item", error: err.message });
   }
 };
+
+/**
+ * Add participant (beneficiary / executor / witness) to a vault
+ */
+export const addParticipant = async (req, res) => {
+  try {
+    const { vaultId, email, role } = req.body;
+    if (!vaultId || !email || !role)
+      return res.status(400).json({ message: "vaultId, email, and role required" });
+
+    const vault = await Vault.findById(vaultId);
+    if (!vault) return res.status(404).json({ message: "Vault not found" });
+
+    // Only owner can add participants
+    if (vault.ownerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only owner can add participants" });
+    }
+
+    const participant = await User.findOne({ email });
+    if (!participant)
+      return res.status(404).json({ message: "User not found with that email" });
+
+    // Prevent duplicates
+    const already = vault.participants.some(
+      (p) => p.participantId.toString() === participant._id.toString()
+    );
+    if (already)
+      return res.status(400).json({ message: "User already added as participant" });
+
+    vault.participants.push({
+      participantId: participant._id,
+      role,
+      encKey: "pending", // can later store sealedKey for that participant
+    });
+
+    await vault.save();
+
+    res.json({ message: "Participant added successfully", vault });
+  } catch (err) {
+    console.error("Error adding participant:", err);
+    res.status(500).json({ message: "Failed to add participant" });
+  }
+};
+
 
 
 // ✅ Update existing vault
@@ -118,21 +181,33 @@ export const deleteVault = async (req, res) => {
 // Get a specific vault by ID with its items
 export const getVaultById = async (req, res) => {
   try {
-    const vault = await Vault.findOne({
-      _id: req.params.id,
-      ownerId: req.user._id,
-    }).populate("ruleSetId");
+    const vault = await Vault.findById(req.params.id)
+      .populate("items")
+      .populate("ruleSetId")
+      .populate("participants.participantId", "firstName lastName email role");
 
     if (!vault) {
-      return res.status(404).json({ message: "Vault not found or not authorized" });
+      return res.status(404).json({ message: "Vault not found" });
     }
 
-    // Fetch related items
-    const items = await Item.find({ vaultId: vault._id });
+    // Check access
+    const userId = req.user._id.toString();
+    const isOwner = vault.ownerId.toString() === userId;
+    const isParticipant = vault.participants.some(
+      (p) => p.participantId && p.participantId._id.toString() === userId
+    );
 
-    res.json({ vault, items });
+    if (!isOwner && !isParticipant) {
+      return res.status(403).json({ message: "Access denied to this vault" });
+    }
+
+    res.json({
+      vault,
+      items: vault.items || [],
+    });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching vault", error: err.message });
+    console.error("Error fetching vault:", err);
+    res.status(500).json({ message: "Failed to fetch vault" });
   }
 };
 

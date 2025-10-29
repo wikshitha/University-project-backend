@@ -57,14 +57,32 @@ export const triggerRelease = async (req, res) => {
  */
 export const getReleasesForUser = async (req, res) => {
   try {
-    const releases = await Release.find()
-      .populate("vaultId")
-      .sort({ triggeredAt: -1 });
+    let releases;
+
+    if (req.user.role === "owner") {
+      releases = await Release.find()
+        .populate({
+          path: "vaultId",
+          match: { ownerId: req.user._id },
+        })
+        .sort({ triggeredAt: -1 });
+    } else {
+      releases = await Release.find()
+        .populate({
+          path: "vaultId",
+          match: { "participants.participantId": req.user._id },
+        })
+        .sort({ triggeredAt: -1 });
+    }
+
+    releases = releases.filter((r) => r.vaultId !== null);
+
     res.json(releases);
   } catch (err) {
     res.status(500).json({ message: "Error fetching releases", error: err.message });
   }
 };
+
 
 /**
  * Approve or reject a release (executor/witness action)
