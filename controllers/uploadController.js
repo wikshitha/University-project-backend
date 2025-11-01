@@ -5,7 +5,7 @@ import Vault from "../models/Vault.js";
 import { v4 as uuidv4 } from "uuid";
 import AuditLog from "../models/AuditLog.js";
 
-// Cloudinary config (from .env)
+// Cloudinary config
 cloudinary.v2.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -24,7 +24,7 @@ export const uploadEncryptedFile = async (req, res) => {
       return res.status(400).json({ message: "Vault ID, encrypted data, and encKey required" });
     }
 
-    // Verify vault ownership
+    // Verify vault existence
     const vault = await Vault.findById(vaultId);
     if (!vault) return res.status(404).json({ message: "Vault not found" });
 
@@ -48,18 +48,24 @@ export const uploadEncryptedFile = async (req, res) => {
       metadata: metadata || {},
     });
 
-    // Create audit log entry
+    // Push item ID to Vault.items
+    vault.items.push(item._id);
+    await vault.save();
+
+    // Audit log
     await AuditLog.create({
       actorId: req.user._id,
       action: `encrypted_file_uploaded to vault ${vaultId}`,
+      details: { itemId: item._id, fileName: metadata?.name },
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Encrypted file uploaded successfully",
       item,
+      vault, // optional: return updated vault with items
     });
   } catch (err) {
-    console.error(" Upload error:", err);
-    res.status(500).json({ message: "Error uploading encrypted file" });
+    console.error("Upload error:", err);
+    return res.status(500).json({ message: "Error uploading encrypted file", error: err.message });
   }
 };
