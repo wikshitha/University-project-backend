@@ -114,6 +114,31 @@ export const addParticipant = async (req, res) => {
   }
 };
 
+export const removeParticipant = async (req, res) => {
+  try {
+    const { id, participantId } = req.params;
+
+    const vault = await Vault.findById(id);
+    if (!vault) return res.status(404).json({ message: "Vault not found" });
+
+    // Only owner can remove
+    if (vault.ownerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only owner can remove participants" });
+    }
+
+    vault.participants = vault.participants.filter(
+      (p) => p.participantId.toString() !== participantId
+    );
+    await vault.save();
+
+    res.json({ message: "Participant removed successfully", vault });
+  } catch (err) {
+    console.error("Error removing participant:", err);
+    res.status(500).json({ message: "Failed to remove participant" });
+  }
+};
+
+
 // ---------------- GET VAULT BY ID ----------------
 export const getVaultById = async (req, res) => {
   try {
