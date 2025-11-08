@@ -44,30 +44,30 @@ export const createVault = async (req, res) => {
 export const getMyVaults = async (req, res) => {
   try {
     const userId = req.user._id;
-    const userRole = req.user.role;
 
-    let vaults;
+    // Fetch vaults owned by user
+    const ownedVaults = await Vault.find({ ownerId: userId })
+      .populate("ruleSetId")
+      .populate("participants.participantId", "firstName lastName email role")
+      .populate({
+        path: "items",
+        select: "metadata fileUrl encKey createdAt",
+      });
 
-    if (userRole === "owner") {
-      vaults = await Vault.find({ ownerId: userId })
-        .populate("ruleSetId")
-        .populate("participants.participantId", "firstName lastName email role")
-        .populate({
-          path: "items",
-          select: "metadata fileUrl encKey createdAt",
-        });
-    } else {
-      vaults = await Vault.find({ "participants.participantId": userId })
-        .populate("ownerId", "firstName lastName email role")
-        .populate("ruleSetId")
-        .populate("participants.participantId", "firstName lastName email role")
-        .populate({
-          path: "items",
-          select: "metadata fileUrl encKey createdAt",
-        });
-    }
+    // Fetch vaults where user is a participant
+    const participatedVaults = await Vault.find({ "participants.participantId": userId })
+      .populate("ownerId", "firstName lastName email role")
+      .populate("ruleSetId")
+      .populate("participants.participantId", "firstName lastName email role")
+      .populate({
+        path: "items",
+        select: "metadata fileUrl encKey createdAt",
+      });
 
-    return res.status(200).json(vaults);
+    return res.status(200).json({
+      ownedVaults,
+      participatedVaults,
+    });
   } catch (err) {
     console.error("Error fetching vaults:", err);
     return res.status(500).json({ message: "Failed to fetch vaults" });
@@ -155,14 +155,44 @@ export const getVaultById = async (req, res) => {
     // Access control: only owner or participant can view
     const userId = req.user._id.toString();
     const isOwner = vault.ownerId.toString() === userId;
-    const isParticipant = vault.participants.some(
+    const participant = vault.participants.find(
       (p) => p.participantId && p.participantId._id.toString() === userId
     );
+    const isParticipant = !!participant;
 
     if (!isOwner && !isParticipant)
       return res.status(403).json({ message: "Access denied to this vault" });
 
-    return res.status(200).json({ vault, items: vault.items || [] });
+    // Determine if user can access files
+    let canAccessFiles = isOwner; // Owner can always access
+    let items = vault.items || [];
+
+    // For participants (beneficiary, witness, shared), check release status
+    if (!isOwner && isParticipant) {
+      const Release = (await import("../models/Release.js")).default;
+      
+      // Find active release for this vault
+      const release = await Release.findOne({
+        vaultId: vault._id,
+        status: { $in: ["pending", "in_progress", "approved", "released"] }
+      }).sort({ triggeredAt: -1 });
+
+      // Participants can only access files if release is fully complete
+      if (release && release.isFullyReleased()) {
+        canAccessFiles = true;
+      } else {
+        // Hide files from participants until release is complete
+        items = [];
+      }
+    }
+
+    return res.status(200).json({ 
+      vault, 
+      items,
+      canAccessFiles,
+      isOwner,
+      userRole: isOwner ? "owner" : participant?.role || "participant"
+    });
    
   } catch (err) {
     console.error("Error fetching vault:", err);
@@ -175,10 +205,16 @@ export const deleteVault = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const vault = await Vault.findOne({ _id: id, ownerId: req.user._id });
+    // Find the vault
+    const vault = await Vault.findById(id);
     if (!vault)
-      return res.status(404).json({ message: "Vault not found or not authorized" });
+      return res.status(404).json({ message: "Vault not found" });
 
+    // Check if the user is the owner
+    if (vault.ownerId.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: "Only vault owner can delete this vault" });
+
+    // Delete associated ruleset and vault
     if (vault.ruleSetId) await RuleSet.findByIdAndDelete(vault.ruleSetId);
     await Vault.findByIdAndDelete(vault._id);
 

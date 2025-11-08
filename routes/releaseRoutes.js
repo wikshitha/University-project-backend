@@ -5,8 +5,8 @@ import {
   confirmRelease,
   finalizeRelease,
   getPendingReleasesForUser,
-  revokeRelease
-
+  revokeRelease,
+  getVaultReleaseStatus
 } from "../controllers/releaseController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 
@@ -20,6 +20,9 @@ router.get("/", protect, getReleasesForUser);
 
 //  Get all pending releases visible to current user
 router.get("/pending", protect, getPendingReleasesForUser);
+
+// Get release status for a specific vault
+router.get("/vault/:vaultId", protect, getVaultReleaseStatus);
 
 //  Approve or reject a release
 router.post("/confirm", protect, confirmRelease);

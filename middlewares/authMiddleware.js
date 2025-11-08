@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import Vault from "../models/Vault.js";
 
 export const protect = async (req, res, next) => {
   let token;
@@ -17,3 +18,65 @@ export const protect = async (req, res, next) => {
 
   if (!token) return res.status(401).json({ message: "Not authorized, no token" });
 };
+
+// Middleware to check if user is the vault owner
+export const isVaultOwner = async (req, res, next) => {
+  try {
+    const vaultId = req.params.id || req.body.vaultId;
+    
+    if (!vaultId) {
+      return res.status(400).json({ message: "Vault ID is required" });
+    }
+
+    const vault = await Vault.findById(vaultId);
+    
+    if (!vault) {
+      return res.status(404).json({ message: "Vault not found" });
+    }
+
+    if (vault.ownerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Access denied. Only vault owner can perform this action." });
+    }
+
+    req.vault = vault;
+    next();
+  } catch (err) {
+    console.error("isVaultOwner middleware error:", err);
+    return res.status(500).json({ message: "Error checking vault ownership" });
+  }
+};
+
+// Middleware to check if user has access to vault (owner or participant)
+export const hasVaultAccess = async (req, res, next) => {
+  try {
+    const vaultId = req.params.id || req.body.vaultId;
+    
+    if (!vaultId) {
+      return res.status(400).json({ message: "Vault ID is required" });
+    }
+
+    const vault = await Vault.findById(vaultId);
+    
+    if (!vault) {
+      return res.status(404).json({ message: "Vault not found" });
+    }
+
+    const userId = req.user._id.toString();
+    const isOwner = vault.ownerId.toString() === userId;
+    const isParticipant = vault.participants.some(
+      (p) => p.participantId && p.participantId.toString() === userId
+    );
+
+    if (!isOwner && !isParticipant) {
+      return res.status(403).json({ message: "Access denied to this vault" });
+    }
+
+    req.vault = vault;
+    req.isOwner = isOwner;
+    next();
+  } catch (err) {
+    console.error("hasVaultAccess middleware error:", err);
+    return res.status(500).json({ message: "Error checking vault access" });
+  }
+};
+

@@ -38,4 +38,21 @@ const releaseSchema = new mongoose.Schema({
   },
 });
 
+// Helper method to check if release is fully complete and accessible
+releaseSchema.methods.isFullyReleased = function() {
+  return this.status === "released";
+};
+
+// Helper method to check if still in grace period
+releaseSchema.methods.isInGracePeriod = function() {
+  if (!this.gracePeriodEnd) return false;
+  return new Date() < new Date(this.gracePeriodEnd);
+};
+
+// Helper method to check if in time lock period
+releaseSchema.methods.isInTimeLock = function() {
+  if (!this.countdownEnd) return false;
+  return this.status === "approved" && new Date() < new Date(this.countdownEnd);
+};
+
 export default mongoose.model("Release", releaseSchema);

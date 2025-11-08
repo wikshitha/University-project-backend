@@ -11,7 +11,7 @@ const participantSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ["beneficiary", "executor", "witness"],
+    enum: ["beneficiary", "shared", "witness"],
     required: true,
   },
 });
