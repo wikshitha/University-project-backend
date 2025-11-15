@@ -10,6 +10,14 @@ export const protect = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select("-password");
+      
+      // Update last active timestamp for the authenticated user
+      // This updates on ANY activity - login, vault access, file operations, etc.
+      // The inactivity watcher checks if the VAULT OWNER is inactive
+      if (req.user) {
+        await User.findByIdAndUpdate(req.user._id, { lastActiveAt: new Date() });
+      }
+      
       next();
     } catch (err) {
       return res.status(401).json({ message: "Not authorized, token failed" });

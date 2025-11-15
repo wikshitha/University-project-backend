@@ -67,6 +67,12 @@ const vaultSchema = new mongoose.Schema(
 
     // Encrypted (sealed) vault keys per participant
     sealedKeys: [sealedKeySchema],
+
+    // Track if inactivity release has been triggered
+    releaseTriggered: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

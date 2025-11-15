@@ -9,6 +9,7 @@ import releaseRoutes from "./routes/releaseRoutes.js";
 import auditLogRoutes from "./routes/auditLogRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import keyBackupRoutes from "./routes/keyBackupRoutes.js";
+import inactivityRoutes from "./routes/inactivityRoutes.js";
 import { startInactivityWatcher } from "./jobs/inactivityWatcher.js";
 import { startGracePeriodChecker } from "./jobs/gracePeriodChecker.js";
 import { startReleaseScheduler } from "./jobs/releaseScheduler.js";
@@ -27,6 +28,7 @@ app.use("/api/keybackup", keyBackupRoutes);
 app.use("/api/releases", releaseRoutes);
 app.use("/api/auditlogs", auditLogRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/inactivity", inactivityRoutes);
 
 
 

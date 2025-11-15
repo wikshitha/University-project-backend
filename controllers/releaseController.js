@@ -3,6 +3,7 @@ import Confirmation from "../models/Confirmation.js";
 import AuditLog from "../models/AuditLog.js";
 import Vault from "../models/Vault.js";
 import { sendEmail } from "../utils/emailService.js";
+import { addTimePeriod, getTimeDescription } from "../utils/timeHelper.js";
 
 
 /**
@@ -33,9 +34,8 @@ export const triggerRelease = async (req, res) => {
       return res.status(400).json({ message: "Release already in progress for this vault" });
     }
 
-    // Calculate grace period end
-    const gracePeriodEnd = new Date();
-    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + ruleSet.gracePeriod);
+    // Calculate grace period end using time helper
+    const gracePeriodEnd = addTimePeriod(new Date(), ruleSet.gracePeriod);
 
     // Create new release
     const release = await Release.create({
@@ -49,17 +49,19 @@ export const triggerRelease = async (req, res) => {
 
     // Notify witnesses and beneficiaries
     const participants = vault.participants || [];
+    const gracePeriodDesc = getTimeDescription(ruleSet.gracePeriod);
+    
     for (const p of participants) {
       if (p.participantId && p.participantId.email) {
         const role = p.role;
         let emailBody = "";
         
         if (role === "witness") {
-          emailBody = `A release has been triggered for vault "${vault.title}". Grace period ends on ${release.gracePeriodEnd.toLocaleDateString()}. You will be required to approve this release.`;
+          emailBody = `A release has been triggered for vault "${vault.title}". Grace period (${gracePeriodDesc}) ends on ${release.gracePeriodEnd.toLocaleString()}. You will be required to approve this release.`;
         } else if (role === "beneficiary") {
-          emailBody = `A release has been triggered for vault "${vault.title}". Grace period ends on ${release.gracePeriodEnd.toLocaleDateString()}. After approval and time-lock, you will gain access to the vault contents.`;
+          emailBody = `A release has been triggered for vault "${vault.title}". Grace period (${gracePeriodDesc}) ends on ${release.gracePeriodEnd.toLocaleString()}. After approval and time-lock, you will gain access to the vault contents.`;
         } else {
-          emailBody = `A release has been triggered for vault "${vault.title}". Grace period ends on ${release.gracePeriodEnd.toLocaleDateString()}.`;
+          emailBody = `A release has been triggered for vault "${vault.title}". Grace period (${gracePeriodDesc}) ends on ${release.gracePeriodEnd.toLocaleString()}.`;
         }
         
         await sendEmail(
@@ -74,7 +76,7 @@ export const triggerRelease = async (req, res) => {
     await AuditLog.create({
       user: req.user._id,
       action: "Release Triggered",
-      details: { vaultId, releaseId: release._id, gracePeriodEnd },
+      details: { vaultId, releaseId: release._id, gracePeriodEnd, gracePeriodDesc },
     });
 
     res.status(201).json({
@@ -154,10 +156,16 @@ export const confirmRelease = async (req, res) => {
       return res.status(403).json({ message: "Only witnesses can approve or reject releases" });
     }
 
-    // Check if grace period has ended
-    if (release.isInGracePeriod()) {
+    // Witnesses can only approve/reject after grace period ends (status must be "in_progress")
+    if (release.status === "pending") {
       return res.status(400).json({ 
-        message: `Grace period has not ended yet. Grace period ends on ${release.gracePeriodEnd.toLocaleDateString()}` 
+        message: `Grace period is still active. Grace period ends on ${release.gracePeriodEnd.toLocaleString()}. Please wait until the grace period ends.` 
+      });
+    }
+
+    if (release.status !== "in_progress") {
+      return res.status(400).json({ 
+        message: `Cannot approve/reject release. Current status: ${release.status}` 
       });
     }
 
@@ -183,15 +191,36 @@ export const confirmRelease = async (req, res) => {
     if (status === "approved") {
       release.approvalsReceived += 1;
 
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      console.log(`✅ WITNESS APPROVED RELEASE`);
+      console.log(`   👤 Witness: ${req.user.email}`);
+      console.log(`   📋 Release ID: ${release._id}`);
+      console.log(`   🏛️  Vault: "${vault.title}"`);
+      console.log(`   📊 Approvals: ${release.approvalsReceived}/${release.approvalsNeeded}`);
+
       // Check if all required approvals are collected
       if (release.approvalsReceived >= release.approvalsNeeded) {
         release.status = "approved";
         
-        // Start time-lock countdown
+        // Start time-lock countdown using time helper
         const ruleSet = vault.ruleSetId;
-        const countdownEnd = new Date();
-        countdownEnd.setDate(countdownEnd.getDate() + ruleSet.timeLock);
+        const countdownEnd = addTimePeriod(new Date(), ruleSet.timeLock);
         release.countdownEnd = countdownEnd;
+        
+        const timeLockDesc = getTimeDescription(ruleSet.timeLock);
+        
+        console.log(`   `);
+        console.log(`   🎉 ALL APPROVALS RECEIVED!`);
+        console.log(`   📊 Status Changed: in_progress → approved`);
+        console.log(`   🔒 TIME-LOCK STARTED!`);
+        console.log(`   ⏰ Time-Lock Duration: ${timeLockDesc}`);
+        console.log(`   📅 Time-Lock Ends: ${countdownEnd.toLocaleString()}`);
+        console.log(`   `);
+        console.log(`   📌 NEXT STEP:`);
+        console.log(`   → Wait for time-lock to expire`);
+        console.log(`   → Status will change to 'released'`);
+        console.log(`   → Beneficiaries can then access vault files`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         
         // Notify participants about time-lock
         for (const p of vault.participants) {
@@ -199,17 +228,29 @@ export const confirmRelease = async (req, res) => {
             await sendEmail(
               p.participantId.email,
               "Vault Approved — Time Lock Started",
-              `Vault "${vault.title}" has received all required approvals (${release.approvalsReceived}/${release.approvalsNeeded}). Time-lock period has started and will end on ${countdownEnd.toLocaleDateString()}.`
+              `Vault "${vault.title}" has received all required approvals (${release.approvalsReceived}/${release.approvalsNeeded}). Time-lock period (${timeLockDesc}) has started and will end on ${countdownEnd.toLocaleString()}.`
             );
           }
         }
       } else {
         release.status = "in_progress";
+        console.log(`   ℹ️  Waiting for more approvals (${release.approvalsNeeded - release.approvalsReceived} remaining)`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
       }
     } else if (status === "rejected") {
       // If any witness rejects, the entire release is rejected
       release.status = "rejected";
       release.completedAt = new Date();
+
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      console.log(`❌ WITNESS REJECTED RELEASE`);
+      console.log(`   👤 Witness: ${req.user.email}`);
+      console.log(`   📋 Release ID: ${release._id}`);
+      console.log(`   🏛️  Vault: "${vault.title}"`);
+      console.log(`   📊 Status Changed: in_progress → rejected`);
+      console.log(`   💬 Comment: ${comment || "No comment provided"}`);
+      console.log(`   ℹ️  Release process terminated`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
       // Notify participants about rejection
       for (const p of vault.participants) {

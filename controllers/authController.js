@@ -15,7 +15,14 @@ export const register = async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ message: "User already exists" });
 
-    const user = new User({ firstName, lastName, email, password, role });
+    const user = new User({ 
+      firstName, 
+      lastName, 
+      email, 
+      password, 
+      role,
+      lastActiveAt: new Date()
+    });
     await user.save();
 
     const token = generateToken(user);
@@ -39,10 +46,22 @@ export const login = async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
+    // Update last active timestamp on login
+    user.lastActiveAt = new Date();
+    await user.save();
+
     const token = generateToken(user);
     res.json({ 
       message: "Login successful", 
-      user: { id: user._id, email: user.email, role: user.role }, 
+      user: { 
+        id: user._id, 
+        email: user.email, 
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        publicKey: user.publicKey,
+        privateKeyEnc: user.privateKeyEnc
+      }, 
       token 
     });
   } catch (err) {

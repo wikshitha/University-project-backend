@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
     of: String,
     default: {},
   },
+  lastActiveAt: {
+    type: Date,
+    default: Date.now
+  },
 }, { timestamps: true });
 
 // Hash password before save

@@ -3,11 +3,16 @@ import Release from "../models/Release.js";
 import Vault from "../models/Vault.js";
 import AuditLog from "../models/AuditLog.js";
 import { sendEmail } from "../utils/emailService.js";
+import { getCronSchedule, getTestMode } from "../utils/timeHelper.js";
 
 export const startGracePeriodChecker = () => {
-  // Run every hour to check if grace periods have ended
-  cron.schedule("0 * * * *", async () => {
-    console.log("⏳ [Cron] Checking grace periods...");
+  // In test mode: run every minute
+  // In production: run every hour
+  const schedule = getCronSchedule("0 * * * *", "* * * * *");
+  
+  cron.schedule(schedule, async () => {
+    const mode = getTestMode() ? "[TEST MODE]" : "[PRODUCTION]";
+    console.log(`⏳ ${mode} Checking grace periods...`);
 
     try {
       const now = new Date();
@@ -31,6 +36,19 @@ export const startGracePeriodChecker = () => {
         // Move release to "in_progress" - awaiting witness approvals
         release.status = "in_progress";
         await release.save();
+
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`🚀 ${mode} GRACE PERIOD ENDED!`);
+        console.log(`   📋 Release ID: ${release._id}`);
+        console.log(`   🏛️  Vault: "${vault.title}"`);
+        console.log(`   📊 Status Changed: pending → in_progress`);
+        console.log(`   👥 Approvals Needed: ${release.approvalsNeeded}`);
+        console.log(`   ✅ Approvals Received: ${release.approvalsReceived}`);
+        console.log(`   `);
+        console.log(`   📌 NEXT STEP:`);
+        console.log(`   → Witnesses can now APPROVE or REJECT this release`);
+        console.log(`   → After ${release.approvalsNeeded} approval(s), time-lock will start`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 
         // Notify witnesses that they need to approve
         const witnesses = vault.participants.filter(p => p.role === "witness");
@@ -66,13 +84,16 @@ export const startGracePeriodChecker = () => {
             message: "Release moved to in_progress, awaiting witness approvals"
           },
         });
+      }
 
-        console.log(`🚀 Release ${release._id} moved to in_progress - awaiting approvals`);
+      if (releases.length === 0) {
+        console.log(`   ℹ️  No releases with expired grace periods found`);
       }
     } catch (err) {
       console.error("❌ GracePeriodChecker error:", err);
     }
   });
 
-  console.log("⏳ Grace Period Checker started — hourly run.");
+  const modeDesc = getTestMode() ? "every minute (TEST MODE)" : "hourly (PRODUCTION)";
+  console.log(`⏳ Grace Period Checker started — ${modeDesc}.`);
 };

@@ -38,6 +38,11 @@ const releaseSchema = new mongoose.Schema({
   },
 });
 
+// Create a compound index to help with queries
+releaseSchema.index({ vaultId: 1, status: 1 });
+releaseSchema.index({ status: 1, gracePeriodEnd: 1 });
+releaseSchema.index({ status: 1, countdownEnd: 1 });
+
 // Helper method to check if release is fully complete and accessible
 releaseSchema.methods.isFullyReleased = function() {
   return this.status === "released";

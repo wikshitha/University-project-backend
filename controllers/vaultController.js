@@ -224,3 +224,46 @@ export const deleteVault = async (req, res) => {
     return res.status(500).json({ message: "Error deleting vault", error: err.message });
   }
 };
+
+// ---------------- GET SEALED VAULT KEY FOR CURRENT USER ----------------
+export const getSealedVaultKey = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id.toString();
+
+    const vault = await Vault.findById(id);
+    if (!vault) {
+      return res.status(404).json({ message: "Vault not found" });
+    }
+
+    // Check if user has access to this vault
+    const isOwner = vault.ownerId.toString() === userId;
+    const isParticipant = vault.participants.some(
+      (p) => p.participantId && p.participantId.toString() === userId
+    );
+
+    if (!isOwner && !isParticipant) {
+      return res.status(403).json({ message: "Access denied to this vault" });
+    }
+
+    // Find sealed key for this user
+    const sealedKey = vault.sealedKeys.find(
+      (sk) => sk.participantId && sk.participantId.toString() === userId
+    );
+
+    if (!sealedKey) {
+      return res.status(404).json({ 
+        message: "No sealed key found for your account. Contact vault owner to add your encryption key.",
+        userId: userId 
+      });
+    }
+
+    return res.status(200).json({ 
+      encKey: sealedKey.encKey,
+      vaultId: vault._id 
+    });
+  } catch (err) {
+    console.error("Error fetching sealed vault key:", err);
+    return res.status(500).json({ message: "Error fetching sealed key", error: err.message });
+  }
+};
