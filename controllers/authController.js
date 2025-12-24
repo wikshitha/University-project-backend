@@ -11,16 +11,18 @@ const generateToken = (user) => {
 // Register
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, role } = req.body;
+    const { firstName, lastName, email, password } = req.body;
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ message: "User already exists" });
 
+    // All new users are created as "owner" by default
+    // Specific roles (beneficiary, witness, shared) are assigned when added to vaults
     const user = new User({ 
       firstName, 
       lastName, 
       email, 
       password, 
-      role,
+      role: "owner",
       lastActiveAt: new Date()
     });
     await user.save();
