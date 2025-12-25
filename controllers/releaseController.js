@@ -94,27 +94,45 @@ export const triggerRelease = async (req, res) => {
  */
 export const getReleasesForUser = async (req, res) => {
   try {
-    let releases;
+    // Find all releases and populate vault information
+    const allReleases = await Release.find()
+      .populate({
+        path: "vaultId",
+        populate: { path: "ownerId participants.participantId" }
+      })
+      .sort({ triggeredAt: -1 });
 
-    if (req.user.role === "owner") {
-      releases = await Release.find()
-        .populate({
-          path: "vaultId",
-          match: { ownerId: req.user._id },
-        })
-        .sort({ triggeredAt: -1 });
-    } else {
-      releases = await Release.find()
-        .populate({
-          path: "vaultId",
-          match: { "participants.participantId": req.user._id },
-        })
-        .sort({ triggeredAt: -1 });
+    // Filter and categorize releases
+    const ownedVaultReleases = [];
+    const participantVaultReleases = [];
+
+    for (const release of allReleases) {
+      if (!release.vaultId) continue;
+
+      const vault = release.vaultId;
+      const isOwner = vault.ownerId && vault.ownerId._id.toString() === req.user._id.toString();
+      const isParticipant = vault.participants.some(
+        (p) => p.participantId && p.participantId._id.toString() === req.user._id.toString()
+      );
+
+      if (isOwner) {
+        ownedVaultReleases.push({ ...release.toObject(), userRole: "owner" });
+      } else if (isParticipant) {
+        const userParticipation = vault.participants.find(
+          (p) => p.participantId && p.participantId._id.toString() === req.user._id.toString()
+        );
+        participantVaultReleases.push({ 
+          ...release.toObject(), 
+          userRole: "participant",
+          participantRole: userParticipation?.role || "unknown"
+        });
+      }
     }
 
-    releases = releases.filter((r) => r.vaultId !== null);
-
-    res.json(releases);
+    res.json({
+      ownedVaultReleases,
+      participantVaultReleases
+    });
   } catch (err) {
     res.status(500).json({ message: "Error fetching releases", error: err.message });
   }
